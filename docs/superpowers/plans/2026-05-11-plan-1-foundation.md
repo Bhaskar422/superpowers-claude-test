@@ -2225,3 +2225,64 @@ Coverage against the spec (Plan 1 scope):
 - Live voice, scenarios, analysis, feedback UI, paywall: out of Plan 1 scope by design
 
 No placeholders, no "TBD"s, every step has either runnable code or a runnable command.
+
+---
+
+## Addendum — Implementation deviations & known follow-ups
+
+Recorded after the plan was executed end-to-end. Each item names the original plan step and the deviation made during implementation. Future re-runs of this plan should start from these corrected forms.
+
+### Task 4 (RLS) — `sessions` is read-only for clients
+
+The plan's Step 4.2 RLS block originally included `sessions_self_insert` and `sessions_self_update`, but the prose immediately below it said sessions writes go through Edge Functions only. The actual migration shipped with **only** `sessions_self_select`. The two write policies on `sessions` were intentionally removed because service-role bypasses RLS and clients have no legitimate write path. Future re-runs: omit `sessions_self_insert` and `sessions_self_update`.
+
+### Task 5 (Env) — `Env.resetForTesting()` exists
+
+Plan Step 5.3 produced an `Env` class with a process-global `_loaded` flag and no teardown — fine for a single test, broken once a second test wants the pre-load `StateError` path. Implementation added `@visibleForTesting static void resetForTesting()` that clears `_loaded` and calls `dotenv.clean()`. Tests use `tearDown(Env.resetForTesting)`. Future re-runs: include the teardown hook from the start.
+
+### Task 6 (Router shell) — `_EnglishCoachAppState.dispose()` disposes the router
+
+Plan Step 6.7's `main.dart` snippet had no `dispose()` for `_router` or `_refresh`. Implementation added the override. Future re-runs: include `dispose()` from the start.
+
+### Task 8 (authControllerProvider) — `ref.read` not `ref.watch`; stronger test assertions
+
+Plan Step 8.3 used `ref.watch(authRepositoryProvider)` inside the `async*` generator. The generator runs once and suspends at `await for`; Riverpod cannot re-enter mid-stream, so `ref.watch` implied reactive-rebuild semantics that cannot fire. Implementation uses `ref.read` instead.
+
+Plan Step 8.1's single test asserted `container.read(authControllerProvider).value` is null. `AsyncValue.value` collapses both `AsyncData(null)` and `AsyncLoading` to null, so the test passed even if the synchronous initial yield was deleted. Implementation strengthened to `expect(..., equals(const AsyncData<User?>(null)))` and added a second test that drives a real `AuthState` through a `StreamController` and asserts the user-yield branch works.
+
+### Tasks 9, 10, 12 (auth screens) — hardened pattern
+
+Plan Steps 9.3, 10.3, 12.3 each produced a `ConsumerStatefulWidget` with TextEditingControllers but **no `dispose()` override**, used `e.toString()` in the catch (exposing raw `AuthException(...)` strings to users), and shipped with only a single happy-path test. Implementation:
+
+- All three screens now override `dispose()` and dispose their controllers.
+- All three use `friendlyAuthError(e)` instead of `e.toString()`.
+- All three have an error-path test asserting the friendly text appears and the `AuthException(` prefix does not.
+- `ProfileSetupScreen` additionally has a validation test and uses a clearer message: `'Please enter your native language and select an English level'` (the plan's `'Please fill in both fields'` was ambiguous given the screen has three inputs).
+
+Future re-runs: include `dispose()`, `friendlyAuthError`, and the failure-mode test from the start.
+
+### New file `lib/features/auth/auth_errors.dart`
+
+Not in the original plan. Adds `friendlyAuthError(Object error)` used by all three auth screens. Returns `AuthException.message` for SDK errors, a generic message for unknown types.
+
+### Task 13 (auth-aware router) — `buildAppRouter` takes the refresh notifier
+
+Plan Step 13.3's `buildAppRouter(WidgetRef ref)` constructed the `ValueNotifier<int> refresh` inside the function and passed it to `GoRouter.refreshListenable`. GoRouter does NOT dispose its listenable, so the notifier was leaked on every widget teardown. Implementation refactored the signature to `buildAppRouter(WidgetRef ref, ValueNotifier<int> refresh)` — the caller owns the notifier and disposes it in `dispose()` alongside the router.
+
+Also added a comment in the redirect explaining the deliberate `AsyncError`-as-signed-out fallback (safer than leaving an unauthenticated user on a gated screen when Supabase is unreachable).
+
+### Task 13 (test coverage gap, intentionally deferred)
+
+The plan's three router tests cover unauth → `/sign-in`, auth + no profile → `/profile-setup`, and auth + complete profile → `/home`. A fourth redirect branch — complete-profile user attempting to navigate to `/sign-in` gets bounced to `/home` — is untested. This branch is only reachable via deep links or programmatic navigation, neither of which is exercised in v1, and adding the test would require additional scaffolding (`GlobalKey` access to the router). Deferred to whichever plan introduces deep-link handling.
+
+### Database polish noted but not changed
+
+Code-quality review of Task 3 flagged forward-looking concerns that don't bite v1 but should be cleaned up before downstream plans build on them:
+
+- **`start_ms` / `end_ms` typed as `int` (32-bit).** Max ~24.8 days of ms. Fine under the 1-hour session cap; will overflow if absolute epoch-ms timestamps are ever stored. Consider `bigint` before the analysis pipeline lands (Plan 4).
+- **`pgcrypto` extension** — `gen_random_uuid()` is built into Postgres 13+ and Supabase auto-loads `pgcrypto` anyway. The migration is not self-contained against bare Postgres. Add `CREATE EXTENSION IF NOT EXISTS "pgcrypto";` if portability matters.
+- **`user_skill_aggregates.updated_at`** has `default now()` for inserts but no `BEFORE UPDATE` trigger to refresh it on writes. Callers must remember to set `updated_at = now()` in every upsert. Address in Plan 4 when the analysis pipeline starts writing to this table.
+
+### Defense-in-depth note (for Plan 7 / Monetization)
+
+The current `users` RLS policy `users_self_update on public.users for update using (id = auth.uid())` lets a signed-in user update **any column** on their own row, including `is_paid` and `trial_sessions_used`. The `ProfileRepository.upsertProfile` write path only sends the basic profile columns, but a malicious client could bypass the repository and write `is_paid = true` directly. Supabase doesn't natively support column-level RLS; the fix is either to drop client UPDATE on `users` entirely and route profile updates through an Edge Function, or to add a trigger that rejects updates to billing columns from non-service-role users. Address before Plan 7 ships the paywall.
