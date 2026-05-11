@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'auth_controller.dart';
+import 'auth_errors.dart';
 
 class SignInScreen extends ConsumerStatefulWidget {
   const SignInScreen({super.key});
@@ -16,15 +17,25 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   bool _busy = false;
   String? _error;
 
+  @override
+  void dispose() {
+    _email.dispose();
+    _password.dispose();
+    super.dispose();
+  }
+
   Future<void> _submit() async {
-    setState(() { _busy = true; _error = null; });
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
     try {
       await ref.read(authRepositoryProvider).signIn(
             email: _email.text.trim(),
             password: _password.text,
           );
     } catch (e) {
-      setState(() => _error = e.toString());
+      setState(() => _error = friendlyAuthError(e));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
