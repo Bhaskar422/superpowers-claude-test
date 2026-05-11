@@ -20,8 +20,16 @@ class EnglishCoachApp extends StatefulWidget {
 }
 
 class _EnglishCoachAppState extends State<EnglishCoachApp> {
+  // No-op until Task 13 wires auth and profile state changes into router refresh.
   final _refresh = ValueNotifier<Object?>(null);
   late final _router = buildRouter(refreshListenable: _refresh);
+
+  @override
+  void dispose() {
+    _router.dispose();
+    _refresh.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
