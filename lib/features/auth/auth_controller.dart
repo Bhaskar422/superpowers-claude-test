@@ -8,7 +8,10 @@ final authRepositoryProvider = Provider<AuthRepository>((ref) {
 
 final authControllerProvider =
     StreamProvider<User?>((ref) async* {
-  final repo = ref.watch(authRepositoryProvider);
+  // ref.read (not watch): the async* generator runs once and suspends at
+  // `await for`. Riverpod cannot re-enter mid-stream if the repo provider
+  // changes, so a reactive dependency here would be misleading.
+  final repo = ref.read(authRepositoryProvider);
   yield repo.currentUser;
   await for (final state in repo.authStateChanges()) {
     yield state.session?.user;
