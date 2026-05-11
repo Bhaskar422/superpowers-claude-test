@@ -2283,6 +2283,13 @@ Code-quality review of Task 3 flagged forward-looking concerns that don't bite v
 - **`pgcrypto` extension** — `gen_random_uuid()` is built into Postgres 13+ and Supabase auto-loads `pgcrypto` anyway. The migration is not self-contained against bare Postgres. Add `CREATE EXTENSION IF NOT EXISTS "pgcrypto";` if portability matters.
 - **`user_skill_aggregates.updated_at`** has `default now()` for inserts but no `BEFORE UPDATE` trigger to refresh it on writes. Callers must remember to set `updated_at = now()` in every upsert. Address in Plan 4 when the analysis pipeline starts writing to this table.
 
+### Test coverage gaps to close in Plan 2
+
+Final review caught two test-surface regressions/gaps that should be picked up before Plan 2 adds new behaviour on top:
+
+- **Tab-tap test was silently dropped.** Task 6's `'tapping the Sessions nav item navigates to /sessions'` test was lost when Task 13 replaced `test/core/router_test.dart` for the auth-guard rewrite. Port it back into the new auth-aware harness before adding new routes — the bottom-nav `onTap → context.go` contract is now untested.
+- **`ProfileRepository.fetchProfile` has zero coverage.** `test/features/auth/profile_repository_test.dart` only covers `upsertProfile`. The read path goes through `.select().eq().maybeSingle()` and then bare `as int`/`as bool` casts in `UserProfile.fromMap` that throw unhelpful `TypeError`s on unexpected DB types. Add a `fetchProfile` test using the existing `_FakeFilterBuilder` pattern.
+
 ### Defense-in-depth note (for Plan 7 / Monetization)
 
 The current `users` RLS policy `users_self_update on public.users for update using (id = auth.uid())` lets a signed-in user update **any column** on their own row, including `is_paid` and `trial_sessions_used`. The `ProfileRepository.upsertProfile` write path only sends the basic profile columns, but a malicious client could bypass the repository and write `is_paid = true` directly. Supabase doesn't natively support column-level RLS; the fix is either to drop client UPDATE on `users` entirely and route profile updates through an Edge Function, or to add a trigger that rejects updates to billing columns from non-service-role users. Address before Plan 7 ships the paywall.
