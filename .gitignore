@@ -43,3 +43,6 @@ android/gradlew.bat
 android/local.properties
 android/**/GeneratedPluginRegistrant.java
 android/key.properties
+
+# Local environment variables (never commit)
+.env
