@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class Env {
@@ -24,5 +25,11 @@ class Env {
       throw StateError('Missing env var: $key');
     }
     return v;
+  }
+
+  @visibleForTesting
+  static void resetForTesting() {
+    _loaded = false;
+    dotenv.clean();
   }
 }
