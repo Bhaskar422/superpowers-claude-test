@@ -1,0 +1,14 @@
+# Skills this project expects to be available in every session.
+# Checked by .claude/hooks/session-start.sh. Lines starting with # and blank lines are ignored.
+brainstorming
+writing-plans
+executing-plans
+subagent-driven-development
+test-driven-development
+systematic-debugging
+verification-before-completion
+requesting-code-review
+receiving-code-review
+using-git-worktrees
+finishing-a-development-branch
+using-superpowers
