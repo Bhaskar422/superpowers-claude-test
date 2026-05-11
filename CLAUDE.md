@@ -3,6 +3,7 @@
 ## Workflow Preferences
 - **Always push to remote after every change.** After committing, immediately run `git push -u origin <branch>`.
 - Development branch: `claude/brainstorm-superpowers-ideas-gBahf`
+- Active PR: https://github.com/Bhaskar422/superpowers-claude-test/pull/1 — pushing to the branch updates it automatically.
 - Never create a PR unless explicitly asked.
 
 ## Project: English Speaking Coach
