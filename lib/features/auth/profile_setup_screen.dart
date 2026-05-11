@@ -28,7 +28,8 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
     final user = ref.read(authRepositoryProvider).currentUser;
     if (user == null) return;
     if (_nativeLanguage.text.trim().isEmpty || _level == null) {
-      setState(() => _error = 'Please fill in both fields');
+      setState(() =>
+          _error = 'Please enter your native language and select an English level');
       return;
     }
     setState(() {

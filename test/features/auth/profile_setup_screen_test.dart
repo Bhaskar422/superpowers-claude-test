@@ -106,7 +106,10 @@ void main() {
     await tester.tap(find.byKey(const Key('profile_submit')));
     await tester.pump();
 
-    expect(find.text('Please fill in both fields'), findsOneWidget);
+    expect(
+      find.text('Please enter your native language and select an English level'),
+      findsOneWidget,
+    );
     verifyNever(() => profileRepo.upsertProfile(
           userId: any(named: 'userId'),
           email: any(named: 'email'),
