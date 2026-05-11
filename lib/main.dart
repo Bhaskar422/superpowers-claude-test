@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'core/env.dart';
 import 'core/supabase_client.dart';
 import 'core/router.dart';
@@ -12,22 +13,19 @@ Future<void> main() async {
   runApp(const ProviderScope(child: EnglishCoachApp()));
 }
 
-class EnglishCoachApp extends StatefulWidget {
+class EnglishCoachApp extends ConsumerStatefulWidget {
   const EnglishCoachApp({super.key});
 
   @override
-  State<EnglishCoachApp> createState() => _EnglishCoachAppState();
+  ConsumerState<EnglishCoachApp> createState() => _EnglishCoachAppState();
 }
 
-class _EnglishCoachAppState extends State<EnglishCoachApp> {
-  // No-op until Task 13 wires auth and profile state changes into router refresh.
-  final _refresh = ValueNotifier<Object?>(null);
-  late final _router = buildRouter(refreshListenable: _refresh);
+class _EnglishCoachAppState extends ConsumerState<EnglishCoachApp> {
+  late final GoRouter _router = buildAppRouter(ref);
 
   @override
   void dispose() {
     _router.dispose();
-    _refresh.dispose();
     super.dispose();
   }
 

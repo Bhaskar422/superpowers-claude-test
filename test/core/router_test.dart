@@ -1,46 +1,106 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:english_coach/core/router.dart';
+import 'package:english_coach/features/auth/auth_controller.dart';
+import 'package:english_coach/features/auth/auth_repository.dart';
+import 'package:english_coach/features/auth/profile_controller.dart';
+import 'package:english_coach/features/auth/profile_repository.dart';
+
+class _MockAuthRepo extends Mock implements AuthRepository {}
+class _MockProfileRepo extends Mock implements ProfileRepository {}
+class _FakeUser extends Fake implements User {
+  @override
+  String get id => 'u1';
+  @override
+  String? get email => 'a@b.co';
+}
+
+ProviderScope _app({
+  required AuthRepository authRepo,
+  required ProfileRepository profileRepo,
+}) {
+  return ProviderScope(
+    overrides: [
+      authRepositoryProvider.overrideWithValue(authRepo),
+      profileRepositoryProvider.overrideWithValue(profileRepo),
+    ],
+    child: const _Host(),
+  );
+}
+
+class _Host extends ConsumerStatefulWidget {
+  const _Host();
+  @override
+  ConsumerState<_Host> createState() => _HostState();
+}
+
+class _HostState extends ConsumerState<_Host> {
+  late final GoRouter _router = buildAppRouter(ref);
+
+  @override
+  void dispose() {
+    _router.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp.router(routerConfig: _router);
+  }
+}
 
 void main() {
-  testWidgets('router starts at /home and shows the home shell with bottom nav',
-      (tester) async {
-    final router = buildRouter(refreshListenable: ValueNotifier(null));
-    addTearDown(router.dispose);
-    await tester.pumpWidget(
-      ProviderScope(
-        child: MaterialApp.router(routerConfig: router),
-      ),
-    );
-    await tester.pumpAndSettle();
-    expect(find.text('Home'), findsAtLeastNWidgets(1));
-    expect(find.byType(BottomNavigationBar), findsOneWidget);
+  late _MockAuthRepo auth;
+  late _MockProfileRepo prof;
+
+  setUp(() {
+    auth = _MockAuthRepo();
+    prof = _MockProfileRepo();
+    when(() => auth.authStateChanges()).thenAnswer((_) => const Stream.empty());
   });
 
-  testWidgets('tapping the Sessions nav item navigates to /sessions',
+  testWidgets('unauthenticated user lands on /sign-in', (tester) async {
+    when(() => auth.currentUser).thenReturn(null);
+    when(() => prof.fetchProfile(any())).thenAnswer((_) async => null);
+
+    await tester.pumpWidget(_app(authRepo: auth, profileRepo: prof));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Sign in'), findsAtLeastNWidgets(1));
+  });
+
+  testWidgets('signed-in user with no profile lands on /profile-setup',
       (tester) async {
-    final router = buildRouter(refreshListenable: ValueNotifier(null));
-    addTearDown(router.dispose);
-    await tester.pumpWidget(
-      ProviderScope(
-        child: MaterialApp.router(routerConfig: router),
-      ),
-    );
+    when(() => auth.currentUser).thenReturn(_FakeUser());
+    when(() => prof.fetchProfile(any())).thenAnswer((_) async => null);
+
+    await tester.pumpWidget(_app(authRepo: auth, profileRepo: prof));
     await tester.pumpAndSettle();
 
-    // Tap the Sessions tab inside the BottomNavigationBar.
-    final navBar = find.byType(BottomNavigationBar);
-    final sessionsLabelInNav = find.descendant(
-      of: navBar,
-      matching: find.text('Sessions'),
-    );
-    await tester.tap(sessionsLabelInNav);
+    expect(find.text('Welcome!'), findsOneWidget);
+  });
+
+  testWidgets('signed-in user with complete profile lands on /home',
+      (tester) async {
+    when(() => auth.currentUser).thenReturn(_FakeUser());
+    when(() => prof.fetchProfile(any())).thenAnswer((_) async => const UserProfile(
+          id: 'u1',
+          email: 'a@b.co',
+          displayName: null,
+          nativeLanguage: 'Spanish',
+          englishLevel: 'intermediate',
+          dailyGoalMinutes: 10,
+          isPaid: false,
+          trialSessionsUsed: 0,
+        ));
+
+    await tester.pumpWidget(_app(authRepo: auth, profileRepo: prof));
     await tester.pumpAndSettle();
 
-    // The Sessions placeholder screen renders its own centered "Sessions" text
-    // in the body, separate from the nav-bar label.
-    expect(router.routerDelegate.currentConfiguration.uri.toString(), '/sessions');
-    expect(find.text('Sessions'), findsAtLeastNWidgets(2)); // nav label + body
+    expect(find.byType(BottomNavigationBar), findsOneWidget);
   });
 }
