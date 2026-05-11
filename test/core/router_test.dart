@@ -39,11 +39,13 @@ class _Host extends ConsumerStatefulWidget {
 }
 
 class _HostState extends ConsumerState<_Host> {
-  late final GoRouter _router = buildAppRouter(ref);
+  final _refresh = ValueNotifier<int>(0);
+  late final GoRouter _router = buildAppRouter(ref, _refresh);
 
   @override
   void dispose() {
     _router.dispose();
+    _refresh.dispose();
     super.dispose();
   }
 

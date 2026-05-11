@@ -21,11 +21,13 @@ class EnglishCoachApp extends ConsumerStatefulWidget {
 }
 
 class _EnglishCoachAppState extends ConsumerState<EnglishCoachApp> {
-  late final GoRouter _router = buildAppRouter(ref);
+  final _refresh = ValueNotifier<int>(0);
+  late final GoRouter _router = buildAppRouter(ref, _refresh);
 
   @override
   void dispose() {
     _router.dispose();
+    _refresh.dispose();
     super.dispose();
   }
 

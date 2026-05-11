@@ -12,8 +12,12 @@ import '../features/sessions/sessions_screen.dart';
 import '../features/progress/progress_screen.dart';
 import '../features/profile/profile_screen.dart';
 
-GoRouter buildAppRouter(WidgetRef ref) {
-  final refresh = ValueNotifier<int>(0);
+/// Builds the app router.
+///
+/// The caller owns `refresh` and is responsible for `refresh.dispose()` after
+/// the router itself is disposed. GoRouter does NOT dispose its `refreshListenable`
+/// — if we created it inside this function, it would leak.
+GoRouter buildAppRouter(WidgetRef ref, ValueNotifier<int> refresh) {
   ref.listen(authControllerProvider, (_, __) => refresh.value++);
   ref.listen(currentProfileProvider, (_, __) => refresh.value++);
 
@@ -21,6 +25,11 @@ GoRouter buildAppRouter(WidgetRef ref) {
     initialLocation: '/home',
     refreshListenable: refresh,
     redirect: (context, state) {
+      // AsyncValue.value returns null for both AsyncError and AsyncData(null).
+      // We deliberately treat a transient auth error the same as signed-out:
+      // the user is sent to /sign-in. This is the safest fallback — if Supabase
+      // is unreachable, requiring re-auth is preferable to silently leaving an
+      // unauthenticated user on a gated screen.
       final authValue = ref.read(authControllerProvider);
       final user = authValue.value;
       final goingToAuth = state.matchedLocation == '/sign-in' ||
