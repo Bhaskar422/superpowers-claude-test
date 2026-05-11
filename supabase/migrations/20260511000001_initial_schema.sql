@@ -164,13 +164,12 @@ create policy users_self_insert on public.users
 create policy users_self_update on public.users
   for update using (id = auth.uid()) with check (id = auth.uid());
 
+-- sessions: clients read only. Inserts/updates happen via the
+-- /sessions/start and /vapi/session-ended Edge Functions under
+-- the service-role key (which bypasses RLS by default).
 alter table public.sessions enable row level security;
 create policy sessions_self_select on public.sessions
   for select using (user_id = auth.uid());
-create policy sessions_self_insert on public.sessions
-  for insert with check (user_id = auth.uid());
-create policy sessions_self_update on public.sessions
-  for update using (user_id = auth.uid()) with check (user_id = auth.uid());
 
 alter table public.transcript_turns enable row level security;
 create policy turns_self_select on public.transcript_turns
