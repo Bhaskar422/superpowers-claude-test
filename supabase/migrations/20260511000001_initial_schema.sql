@@ -143,3 +143,74 @@ create table public.custom_scenarios (
   success_criteria text,
   created_at timestamptz not null default now()
 );
+
+-- ============================================================================
+-- Row-level security
+-- ============================================================================
+
+-- scenarios is world-readable, no writes from clients
+alter table public.scenarios enable row level security;
+create policy scenarios_select_all on public.scenarios
+  for select using (true);
+
+-- helper: tables where "user owns the row by user_id" pattern applies
+-- Each table gets its own policy block to make audits trivial.
+
+alter table public.users enable row level security;
+create policy users_self_select on public.users
+  for select using (id = auth.uid());
+create policy users_self_insert on public.users
+  for insert with check (id = auth.uid());
+create policy users_self_update on public.users
+  for update using (id = auth.uid()) with check (id = auth.uid());
+
+alter table public.sessions enable row level security;
+create policy sessions_self_select on public.sessions
+  for select using (user_id = auth.uid());
+create policy sessions_self_insert on public.sessions
+  for insert with check (user_id = auth.uid());
+create policy sessions_self_update on public.sessions
+  for update using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+alter table public.transcript_turns enable row level security;
+create policy turns_self_select on public.transcript_turns
+  for select using (
+    exists (select 1 from public.sessions s
+            where s.id = transcript_turns.session_id and s.user_id = auth.uid())
+  );
+
+alter table public.feedback_reports enable row level security;
+create policy reports_self_select on public.feedback_reports
+  for select using (
+    exists (select 1 from public.sessions s
+            where s.id = feedback_reports.session_id and s.user_id = auth.uid())
+  );
+
+alter table public.feedback_items enable row level security;
+create policy items_self_select on public.feedback_items
+  for select using (
+    exists (select 1 from public.sessions s
+            where s.id = feedback_items.session_id and s.user_id = auth.uid())
+  );
+
+alter table public.user_skill_aggregates enable row level security;
+create policy aggregates_self_select on public.user_skill_aggregates
+  for select using (user_id = auth.uid());
+
+alter table public.daily_activity enable row level security;
+create policy daily_self_select on public.daily_activity
+  for select using (user_id = auth.uid());
+
+alter table public.user_streak enable row level security;
+create policy streak_self_select on public.user_streak
+  for select using (user_id = auth.uid());
+
+alter table public.custom_scenarios enable row level security;
+create policy custom_self_select on public.custom_scenarios
+  for select using (user_id = auth.uid());
+create policy custom_self_insert on public.custom_scenarios
+  for insert with check (user_id = auth.uid());
+create policy custom_self_update on public.custom_scenarios
+  for update using (user_id = auth.uid()) with check (user_id = auth.uid());
+create policy custom_self_delete on public.custom_scenarios
+  for delete using (user_id = auth.uid());
